@@ -1,0 +1,208 @@
+import numpy
+import scipy
+import netCDF4
+import matplotlib.pyplot as mp
+import matplotlib.ticker
+import matplotlib.colors
+import scipy.stats
+import pandas
+import random
+import itertools
+
+mp.rcParams.update({'mathtext.default': 'regular'})
+#get_ipython().magic('matplotlib inline')
+
+# ======================================================================
+working_dir = '/Users/baird/Dropbox/_analysis/attribution_2017/NEW_CALCULATIONS/npy_files/'
+
+#latlon_indices = numpy.load(working_dir + 'ncal_latlon_indices_array.npy'); region='ncal'
+#latlon_indices = numpy.load(working_dir + 'ccal_latlon_indices_array.npy'); region='ccal'
+#latlon_indices = numpy.load(working_dir + 'scal_latlon_indices_array.npy'); region='scal'
+
+region = 'whole_domain'
+
+threshold = 0.1
+window = 3 # number of seasons for low
+
+year_start_pic = 402 #time_subsets[chunk,0]
+year_end_pic = 2200 #time_subsets[chunk,1]
+year_start = 1920
+year_end = 2100
+
+lo_perc = 10
+hi_perc = 90
+
+year_start_whiplash = 1920
+year_end_whiplash = 1950
+
+
+# ======================================================================
+
+PRECT_nlat = 26
+PRECT_nlon = 25
+
+latlon_indices = list(itertools.product(range(PRECT_nlat), range(PRECT_nlon)))
+
+# ======================================================================
+working_dir = '/Users/baird/Dropbox/_data_original/NCAR_LENS/daily/PRECT/calculated_npy_files/'
+
+N_boots = 100
+
+whiplash_ratios_all = numpy.zeros((9, N_boots))
+
+for bootstrap_idx in range(N_boots):
+
+	whiplash_ratio=[]
+
+	year_start_list = numpy.array([random.randint(402,2170) for i in range(40)], dtype=numpy.int)
+	year_end_list = year_start_list+30
+
+	store_all_whiplash_ratios = numpy.zeros((9, year_start_list.size))
+	whiplash_strings = [str(year_start_list[i])+'-'+str(year_end_list[i]) for i in range(year_start_list.size)]
+
+	for latlon_idx in range(9):
+		#print('==================================================')
+		#print(latlon_idx)
+
+		#print('opening preindustrial control data')
+
+		# Open preindustrial control info
+		# create season strings for PIC
+		years_pic = numpy.arange(year_start_pic, year_end_pic+1, 1).astype(numpy.int)
+		half_years_pic = numpy.arange(year_start_pic+0.75, year_end_pic, 1)
+
+		season_strings_pic = [str(years_pic[i])+'-'+str(years_pic[i+1]) for i in range(years_pic.size-1)]
+		member_strings_pic = ['{:03d}'.format(i) for i in range(1,36)]
+		n_seasons_pic=year_end_pic-year_start_pic
+
+		filename = 'member_005_latidx_'+'{:02d}'.format(latlon_indices[latlon_idx][0])+'_lonidx_'+'{:02d}'.format(latlon_indices[latlon_idx][1])+'_years_'+'{:04d}'.format(year_start_pic)+'-'+'{:04d}'.format(year_end_pic)+'_threshold_'+str(threshold)+'mmday_'+region+'.npy'
+		working_dir = '/Users/baird/Dropbox/_data_original/NCAR_LENS/daily/PRECT/calculated_npy_files/whole_domain/'
+
+		dict_pic = numpy.load(working_dir + filename).item()
+		seasonal_total_pic = numpy.array([dict_pic[s]['seasonal_total'] for s in season_strings_pic])
+
+		# ======================================================================
+		# ======================================================================
+		# ======================================================================
+		# whiplash calculation setup
+		# get top and bottom 10th percentiles in PIC
+		# then see how often it transitions from 1 or 2 seasons with that
+
+		pic_hi = numpy.percentile(seasonal_total_pic, hi_perc)
+
+		# take 3 year running mean for pic_lo
+		seasonal_total_pic_3yr_mean = numpy.array(pandas.Series(seasonal_total_pic).rolling(window=window).mean())
+		pic_lo = numpy.nanpercentile(seasonal_total_pic_3yr_mean, lo_perc)
+
+		whiplash_count_pic = 0
+		whiplash_hi_seasons = []
+		whiplash_lo_seasons = []
+		lo_count = 0
+
+		s=0
+		# check and see if the 3 year running mean is less than the necessary low
+		# if so, consider it a low count
+		# and then ask if the NEXT season is above the hi perc
+		# if so
+		while s<seasonal_total_pic.size:
+			if (seasonal_total_pic_3yr_mean[s]<pic_lo):
+				lo_count+=1
+				s+=1
+			elif (seasonal_total_pic[s]>pic_hi)&(lo_count>0):
+				whiplash_count_pic+=1
+				whiplash_hi_seasons.append(s)
+				whiplash_lo_seasons.append(s-1)
+				lo_count=0
+				s+=window-1
+			else:
+				lo_count=0
+				s+=1
+		#print(whiplash_lo_seasons)
+
+		#flatten this list
+		#whiplash_lo_seasons = [item for sublist in whiplash_lo_seasons for item in sublist]
+		#whiplash_lo_seasons = [item for item in whiplash_lo_seasons]
+
+		# ======================================================================
+		# ======================================================================
+		# ======================================================================
+		# Now split the PIC run into 40 randomly-selected chunks
+		#print('whiplash calculations for PIC period!')
+
+		# import all rcp data NOT BUNCHED TOGETHER but separately as each ensemble member
+		seasonal_total_separate_ensembles = []
+
+		for i in range(40):
+	
+			# calculate index
+			year_start_index = 1798 - (2200 - year_start_list[i])
+			year_end_index = 1798 - (2200 - year_end_list[i])
+		
+			seasonal_total = [dict_pic[s]['seasonal_total'] for s in season_strings_pic[year_start_index:year_end_index]]
+			#seasonal_total = [item for sublist in seasonal_total for item in sublist]
+			seasonal_total_separate_ensembles.append(numpy.array(seasonal_total))
+
+		# now calculate 3 yr running mean for each ensemble member
+		seasonal_total_separate_ensembles_3yr_mean = []
+		for data in seasonal_total_separate_ensembles:
+			seasonal_total_separate_ensembles_3yr_mean.append( numpy.array(pandas.Series(data).rolling(window=window).mean() ))
+
+		#print(seasonal_total_separate_ensembles_3yr_mean[0])
+		#exit()
+
+		# get top and bottom 10th percentiles in PIC
+		# then see how often it transitions from 1 or 2 seasons with that
+
+		whiplash_count = 0
+		whiplash_hi_seasons = []
+		whiplash_lo_seasons = []
+		lo_count = 0
+		whiplash_lo_seasons_ens = []
+		whiplash_hi_seasons_ens = []
+
+		for i in range(40):
+			s=0
+			# calculate index
+			year_start_index = 1798 - (2200 - year_start_list[i])
+			year_end_index = 1798 - (2200 - year_end_list[i])
+			while s<len(season_strings_pic[year_start_index:year_end_index]):
+				if (seasonal_total_separate_ensembles_3yr_mean[i][s]<pic_lo):
+					lo_count += 1
+					s+=1
+				elif (seasonal_total_separate_ensembles[i][s]>pic_hi)&(lo_count>0):
+					whiplash_count += 1
+					whiplash_hi_seasons.append(s)
+					whiplash_lo_seasons.append(s-1)
+					lo_count = 0
+					s+=window-1
+				else:
+					s+=1
+					lo_count=0
+
+			#whiplash_lo_seasons = [item for item in whiplash_lo_seasons]
+			whiplash_lo_seasons_ens.append(whiplash_lo_seasons)
+			whiplash_hi_seasons_ens.append(whiplash_hi_seasons)
+
+			whiplash_hi_seasons = []
+			whiplash_lo_seasons = []
+
+		# ======================================================================
+		# ======================================================================
+		# ======================================================================
+		# now count the number of events that happen in the RCP data set
+		# for each season, count number of events gte the value in the pic
+		#fig.savefig('./figs/all_hist_rcp_seasonal_accumulations_threshold_WHIPLASH_'+str(threshold)+'_mmday_loperc_'+'{:.0f}'.format(lo_perc)+'_hiperc_'+'{:.0f}'.format(hi_perc)+'_dryseasons_'+str(n_lo_events)+'_'+location+'.pdf', transparent=True, bbox_inches='tight')
+
+		# times per century for PREINDUSTRIAL whiplash event
+		pic_freq = (whiplash_count_pic/(1798-window+1))*100
+		# times per century for RCP8.5-like warming
+		rcp_freq = (whiplash_count/(40*(30-window+1)))*100
+		# store this value
+		whiplash_ratio.append(rcp_freq/pic_freq)
+	
+	whiplash_ratios_all[:,bootstrap_idx] = whiplash_ratio
+
+	for i in whiplash_ratio:  print(i)
+
+whiplash_ratios_all_df = pandas.DataFrame(whiplash_ratios_all)
+whiplash_ratios_all_df.to_csv('bootstrap_whiplash_ratios_'+str(hi_perc)+str(lo_perc)+'_pic_'+region+'.csv')

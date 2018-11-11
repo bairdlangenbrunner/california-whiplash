@@ -1,0 +1,92 @@
+{% set version = '1.16' %}
+
+{% set posix = 'm2-' if win else '' %}
+{% set native = 'm2w64-' if win else '' %}
+
+package:
+  name: r-ncdf4
+  version: {{ version|replace("-", "_") }}
+
+source:
+  fn: ncdf4_{{ version }}.tar.gz
+  url:
+    - https://cran.r-project.org/src/contrib/ncdf4_{{ version }}.tar.gz
+    - https://cran.r-project.org/src/contrib/Archive/ncdf4/ncdf4_{{ version }}.tar.gz
+
+
+  sha256: edd5731a805bbece3a8f6132c87c356deafc272351e1dd07256ca00574949253
+  # patches:
+   # List any patch files here
+   # - fix.patch
+
+build:
+  # If this is a new build for the same version, increment the build number.
+  number: 0
+
+  # This is required to make R link correctly on Linux.
+  rpaths:
+    - lib/R/lib/
+    - lib/
+
+
+requirements:
+  build:
+    - r-base
+    - posix                # [win]
+    - {{native}}toolchain  # [win]
+    - gcc                  # [not win]
+
+  run:
+    - r-base
+    - {{native}}gcc-libs   # [win]
+    - libgcc               # [not win]
+
+test:
+  commands:
+    # You can put additional test commands to be run here.
+    - $R -e "library('ncdf4')"  # [not win]
+    - "\"%R%\" -e \"library('ncdf4')\""  # [win]
+
+  # You can also put a file called run_test.py, run_test.sh, or run_test.bat
+  # in the recipe that will be run at test time.
+
+  # requires:
+    # Put any additional test requirements here.
+
+about:
+  home: http://cirrus.ucsd.edu/~pierce/ncdf
+  license: GPL (>= 3)
+  summary: Provides a high-level R interface to data files written using Unidata's netCDF library
+    (version 4 or earlier), which are binary data files that are portable across platforms
+    and include metadata information in addition to the data sets.  Using this package,
+    netCDF files (either version 4 or "classic" version 3) can be opened and data sets
+    read in easily.  It is also easy to create new netCDF dimensions, variables, and
+    files, in either version 3 or 4 format, and manipulate existing netCDF files.  This
+    package replaces the former ncdf package, which only worked with netcdf version
+    3 files.  For various reasons the names of the functions have had to be changed
+    from the names in the ncdf package.  The old ncdf package is still available at
+    the URL given below, if you need to have backward compatibility.  It should be possible
+    to have both the ncdf and ncdf4 packages installed simultaneously without a problem.  However,
+    the ncdf package does not provide an interface for netcdf version 4 files.
+  license_family: GPL3
+
+# The original CRAN metadata for this package was:
+
+# Package: ncdf4
+# Version: 1.16
+# Date: 2017-04-01
+# Title: Interface to Unidata netCDF (Version 4 or Earlier) Format Data Files
+# Author: David Pierce <dpierce@ucsd.edu>
+# Maintainer: David Pierce <dpierce@ucsd.edu>
+# Description: Provides a high-level R interface to data files written using Unidata's netCDF library (version 4 or earlier), which are binary data files that are portable across platforms and include metadata information in addition to the data sets.  Using this package, netCDF files (either version 4 or "classic" version 3) can be opened and data sets read in easily.  It is also easy to create new netCDF dimensions, variables, and files, in either version 3 or 4 format, and manipulate existing netCDF files.  This package replaces the former ncdf package, which only worked with netcdf version 3 files.  For various reasons the names of the functions have had to be changed from the names in the ncdf package.  The old ncdf package is still available at the URL given below, if you need to have backward compatibility.  It should be possible to have both the ncdf and ncdf4 packages installed simultaneously without a problem.  However, the ncdf package does not provide an interface for netcdf version 4 files.
+# SystemRequirements: netcdf library version 4.1 or later
+# License: GPL (>= 3)
+# URL: http://cirrus.ucsd.edu/~pierce/ncdf
+# NeedsCompilation: yes
+# Packaged: 2017-04-01 21:29:52 UTC; pierce
+# Repository: CRAN
+# Date/Publication: 2017-04-01 22:56:52 UTC
+
+# See
+# http://docs.continuum.io/conda/build.html for
+# more information about meta.yaml
